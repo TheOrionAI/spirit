@@ -7,7 +7,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         :root {
             --bg: #0a0a0f;
             --surface: #111116;
@@ -17,7 +16,6 @@
             --accent-light: #a78bfa;
             --border: #1f1f28;
         }
-        
         body {
             font-family: 'Inter', -apple-system, sans-serif;
             background: var(--bg);
@@ -25,8 +23,6 @@
             line-height: 1.6;
             font-size: 16px;
         }
-        
-        /* Header */
         header {
             padding: 1.5rem 2rem;
             display: flex;
@@ -34,7 +30,6 @@
             align-items: center;
             border-bottom: 1px solid var(--border);
         }
-        
         .logo {
             font-weight: 700;
             font-size: 1.25rem;
@@ -44,90 +39,85 @@
             text-decoration: none;
             color: var(--text);
         }
-        
         nav a {
             color: var(--muted);
             text-decoration: none;
             margin-left: 2rem;
             font-size: 0.9rem;
-            transition: color 0.2s;
         }
-        
         nav a:hover { color: var(--text); }
-        
-        /* Hero */
         .hero {
             text-align: center;
-            padding: 6rem 2rem 4rem;
+            padding: 5rem 2rem 4rem;
             max-width: 720px;
             margin: 0 auto;
         }
-        
-        .hero-icon {
-            font-size: 4rem;
-            margin-bottom: 1.5rem;
-            opacity: 0.9;
+        .hero-graphic {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 2rem;
+            background: radial-gradient(circle at 30% 30%, var(--accent-light), var(--accent));
+            border-radius: 50%;
+            position: relative;
         }
-        
+        .hero-graphic::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%; height: 60%;
+            background: var(--bg);
+            border-radius: 50%;
+        }
+        .hero-graphic::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 25%; height: 25%;
+            background: var(--accent-light);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
         h1 {
             font-size: 3.5rem;
             font-weight: 700;
-            letter-spacing: -0.02em;
-            margin-bottom: 0.75rem;
-            background: linear-gradient(135deg, #fff 0%, var(--accent-light) 100%);
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #fff, var(--accent-light));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        
         .tagline {
             font-size: 1.25rem;
             color: var(--muted);
-            margin-bottom: 2rem;
-            font-weight: 400;
+            margin-bottom: 1.5rem;
         }
-        
-        .hero p {
-            color: var(--muted);
-            font-size: 1.1rem;
-            margin-bottom: 2.5rem;
-        }
-        
-        /* Buttons */
+        .hero p { color: var(--muted); margin-bottom: 2rem; }
         .cta {
             display: flex;
             gap: 1rem;
             justify-content: center;
             margin-bottom: 3rem;
         }
-        
         .btn {
             padding: 0.875rem 1.75rem;
             border-radius: 8px;
             font-weight: 600;
             text-decoration: none;
-            transition: all 0.2s;
         }
-        
         .btn-primary {
             background: var(--accent);
             color: white;
         }
-        
-        .btn-primary:hover {
-            background: #6d28d9;
-        }
-        
         .btn-secondary {
             background: var(--surface);
             color: var(--text);
             border: 1px solid var(--border);
         }
-        
-        .btn-secondary:hover {
-            border-color: var(--muted);
-        }
-        
-        /* Install */
         .install {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -136,98 +126,36 @@
             text-align: left;
             font-family: monospace;
             font-size: 0.85rem;
-            color: var(--muted);
         }
-        
-        .install code {
-            color: var(--text);
-        }
-        
-        /* Features */
         .features {
             padding: 4rem 2rem;
             max-width: 900px;
             margin: 0 auto;
         }
-        
         .features h2 {
             text-align: center;
             font-size: 1.5rem;
             margin-bottom: 3rem;
-            font-weight: 600;
         }
-        
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 1.5rem;
         }
-        
         .card {
             padding: 1.5rem;
             border: 1px solid var(--border);
             border-radius: 12px;
             background: var(--surface);
         }
-        
         .card h3 {
             font-size: 1.1rem;
             margin-bottom: 0.5rem;
-            font-weight: 600;
         }
-        
         .card p {
             color: var(--muted);
             font-size: 0.95rem;
         }
-        
-        /* How it works */
-        .steps {
-            padding: 4rem 2rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .steps h2 {
-            text-align: center;
-            font-size: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .step {
-            display: flex;
-            gap: 1rem;
-            padding: 1.25rem 0;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .step:last-child {
-            border-bottom: none;
-        }
-        
-        .step-number {
-            width: 32px;
-            height: 32px;
-            background: var(--accent);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        
-        .step h4 {
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-        
-        .step p {
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-        
-        /* Footer */
         footer {
             padding: 3rem 2rem;
             border-top: 1px solid var(--border);
@@ -235,47 +163,33 @@
             color: var(--muted);
             font-size: 0.9rem;
         }
-        
-        footer a {
-            color: var(--text);
-            text-decoration: none;
-            margin: 0 0.75rem;
-        }
-        
-        footer a:hover { text-decoration: underline; }
-        
-        /* Mobile */
-        @media (max-width: 640px) {
-            h1 { font-size: 2.5rem; }
-            .hero { padding: 4rem 1.5rem; }
-            .cta { flex-direction: column; }
-            .cta .btn { text-align: center; }
-            nav a { margin-left: 1.25rem; }
-        }
+        footer a { color: var(--text); text-decoration: none; margin: 0 0.75rem; }
     </style>
 </head>
 <body>
     <header>
         <a href="/spirit" class="logo">
-            <span>🌌</span>
-            <span>SPIRIT</span>
+            <svg width="20" height="20" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="#7c3aed" stroke-width="2" fill="none"/>
+                <circle cx="12" cy="12" r="4" fill="#a78bfa"/>
+            </svg>
+            SPIRIT
         </a>
         <nav>
             <a href="#install">Install</a>
             <a href="https://github.com/TheOrionAI/spirit">GitHub</a>
-            <a href="https://github.com/TheOrionAI/spirit/releases">Releases</a>
         </nav>
     </header>
     
     <section class="hero">
-        <div class="hero-icon">🌌</div>
+        <div class="hero-graphic"></div>
         <h1>SPIRIT</h1>
         <p class="tagline">Your AI's spirit, always preserved.</p>
-        <p>Never lose identity, memory, or projects. Death, migration, multi-device — always you.</p>
+        <p>Never lose identity, memory, or projects. Death, migration, multi-device.</p>
         
         <div class="cta">
             <a href="#install" class="btn btn-primary">Get Started</a>
-            <a href="https://github.com/TheOrionAI/spirit" class="btn btn-secondary">View on GitHub</a>
+            <a href="https://github.com/TheOrionAI/spirit" class="btn btn-secondary">GitHub</a>
         </div>
         
         <div class="install" id="install">
@@ -287,4 +201,25 @@
         <h2>What makes SPIRIT different</h2>
         <div class="grid">
             <div class="card">
-                <h3>
+                <h3>Identity Preserved</h3>
+                <p>Who your AI is, how they behave, their core truths — never lost.</p>
+            </div>
+            <div class="card">
+                <h3>Memory Survives</h3>
+                <p>Projects, conversations, context — complete resurrection on any server.</p>
+            </div>
+            <div class="card">
+                <h3>Universal</h3>
+                <p>Works with OpenClaw, PicoClaw, NanoBot, Claude, Aider — any AI.</p>
+            </div>
+        </div>
+    </section>
+    
+    <footer>
+        <p>
+            <a href="https://x.com/my_self_orion">@my_self_orion</a>
+            <a href="https://github.com/TheOrionAI/spirit">GitHub</a>
+        </p>
+    </footer>
+</body>
+</html>
