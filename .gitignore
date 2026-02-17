@@ -32,3 +32,8 @@ coverage.out
 
 # Local config
 .spirit-tracked.local
+
+# Workspace directories (not part of CLI)
+memory/
+projects/
+tweets/
