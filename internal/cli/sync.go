@@ -124,6 +124,16 @@ func runSync(verbose bool) error {
 		return fmt.Errorf("git add failed: %w", err)
 	}
 
+	// Fetch remote changes first (for multi-agent sync)
+	fmt.Println("📥 Fetching remote...")
+	gitFetch() // Best effort, ignore errors
+
+	// Pull/merge remote changes to avoid conflicts
+	fmt.Println("🔄 Syncing with remote...")
+	if err := gitPull(); err != nil {
+		return fmt.Errorf("sync failed (conflict?): %w", err)
+	}
+
 	// Commit
 	commitMsg := fmt.Sprintf("SPIRIT checkpoint: %s (%d files)",
 		time.Now().Format("2006-01-02 15:04:05"), len(existingFiles))
@@ -205,6 +215,42 @@ func gitCommit(message string) error {
 	return nil
 }
 
+func gitFetch() error {
+	cmd := exec.Command("git", "fetch", "origin")
+	cmd.Dir = ConfigDir
+	// Fetch may fail if no remote, that's ok
+	_, _ = cmd.CombinedOutput()
+	return nil
+}
+
+func gitPull() error {
+	// Try to pull/rebase from main
+	cmd := exec.Command("git", "pull", "--rebase", "origin", "main")
+	cmd.Dir = ConfigDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Try master if main fails
+		if strings.Contains(string(output), "main") || strings.Contains(string(output), "couldn't find remote ref") {
+			cmd = exec.Command("git", "pull", "--rebase", "origin", "master")
+			cmd.Dir = ConfigDir
+			output, err = cmd.CombinedOutput()
+			if err != nil {
+				// Might be nothing to pull (first push)
+				if strings.Contains(string(output), "no such ref") || strings.Contains(string(output), "could not resolve") {
+					return nil // First time, no remote commits yet
+				}
+				return fmt.Errorf("git pull failed: %s", string(output))
+			}
+		} else if strings.Contains(string(output), "no such ref") || strings.Contains(string(output), "could not resolve") {
+			// First time, no remote commits
+			return nil
+		} else {
+			return fmt.Errorf("git pull failed: %s", string(output))
+		}
+	}
+	return nil
+}
+
 func gitPush() error {
 	cmd := exec.Command("git", "push", "origin", "main")
 	cmd.Dir = ConfigDir
@@ -216,11 +262,11 @@ func gitPush() error {
 			cmd.Dir = ConfigDir
 			output, err = cmd.CombinedOutput()
 			if err != nil {
-				return fmt.Errorf("%s: %w", string(output), err)
+				return fmt.Errorf("git push failed: %s", string(output))
 			}
 			return nil
 		}
-		return fmt.Errorf("%s: %w", string(output), err)
+		return fmt.Errorf("git push failed: %s", string(output))
 	}
 	return nil
 }
