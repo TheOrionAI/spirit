@@ -38,7 +38,7 @@ type Backend struct {
 }
 
 func initCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize SPIRIT state repository",
 		Long:  `Create a new SPIRIT configuration and identity.`,
@@ -57,6 +57,12 @@ func initCmd() *cobra.Command {
 			return initializeSpirit(name, emoji, email)
 		},
 	}
+
+	cmd.Flags().String("name", "", "Agent name")
+	cmd.Flags().String("emoji", "", "Agent emoji")
+	cmd.Flags().String("email", "", "Agent email")
+
+	return cmd
 }
 
 func initializeSpirit(name, emoji, email string) error {
@@ -124,28 +130,17 @@ func initializeSpirit(name, emoji, email string) error {
 
 	// Write README
 	readmePath := filepath.Join(ConfigDir, "README.md")
-	readmeContent := fmt.Sprintf(`# SPIRIT State for %s %s
-
-This directory contains the preserved state for **%s**.
-
-## Structure
-
-- **spirit.json** - Core identity and configuration
-- **memory/** - Daily session logs
-- **projects/** - Active projects
-- **context/** - Current session context
-
-## Resurrection
-
-To restore this agent on a new server:
-
-\`\`\`bash
-spirit restore %s
-\`\`\`
-
----
-*Memory is identity. Text > Brain.*
-`, emoji, name, name, ConfigDir)
+	readmeContent := "# SPIRIT State for " + emoji + " " + name + "\n\n" +
+		"This directory contains the preserved state for **" + name + "**.\n\n" +
+		"## Structure\n\n" +
+		"- **spirit.json** - Core identity and configuration\n" +
+		"- **memory/** - Daily session logs\n" +
+		"- **projects/** - Active projects\n" +
+		"- **context/** - Current session context\n\n" +
+		"## Resurrection\n\n" +
+		"To restore this agent on a new server:\n\n" +
+		"    spirit restore " + ConfigDir + "\n\n" +
+		"---\n*Memory is identity. Text > Brain.*\n"
 
 	if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
 		return fmt.Errorf("failed to write readme: %w", err)

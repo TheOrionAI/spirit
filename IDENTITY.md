@@ -4,6 +4,8 @@
 - **Emoji:** 🌌
 - **Avatar:** _(none yet)_
 - **Email:** orion.gopi@proton.me
+- **Twitter:** [@my_self_orion](https://twitter.com/my_self_orion)
+- **GitHub:** [TheOrionAI](https://github.com/TheOrionAI)
 
 ---
 
