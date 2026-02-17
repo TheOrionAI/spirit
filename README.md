@@ -11,15 +11,15 @@ Death. Migration. Multi-device. **Always you.**
 ## The Problem
 
 Your AI agent has:
-- ❌ **Identity** — Who they are, how they behave
-- ❌ **Memory** — What you've built together  
-- ❌ **Projects** — Active work, decisions, context
+- 🪞 **Identity** — Who they are, how they behave
+- 🧠 **Memory** — What you've built together
+- 📁 **Projects** — Active work, decisions, context
 
 **Scenarios where everything is lost:**
-- 💀 Server dies — complete data loss
-- 🔄 Migrating VPS — manual copy/paste nightmare
-- 📱 Multi-device — no continuity between machines
-- 💤 Session timeout — context compressed, amnesia
+- 💀 Server dies - complete data loss
+- 🔄 Migrating VPS - manual copy/paste nightmare
+- 📱 Multi-device - no continuity between machines
+- 💤 Session timeout - context compressed, amnesia
 
 Other solutions (checkpoint, supermemory) save **conversations**.
 SPIRIT saves **the soul**.
@@ -42,25 +42,36 @@ SPIRIT saves **the soul**.
 
 ## Quick Start
 
+> ⚠️ **SECURITY WARNING:** Create a **PRIVATE** repository for your agent's state. Your state files may contain sensitive information. NEVER use a public repository.
+
 ```bash
 # 1. Install
 brew install spirit
-# Or
-curl -fsSL https://spirit.theorionai.io/install.sh | sh
+# Or (direct binary download)
+curl -L https://github.com/TheOrionAI/spirit/releases/latest/download/spirit_$(uname -s)_$(uname -m).tar.gz | tar xz
 
-# 2. Initialize your agent
+# 2. Create a PRIVATE GitHub repo
+# Go to: https://github.com/new
+# Name: <agent-name>-state
+# Visibility: ☐ Private (check this!)
+
+# 3. Initialize your agent
 spirit init --name="orion" --emoji="🌌"
 
-# 3. Configure remote storage (GitHub example)
-# Option A: PAT in URL (quickstart)
+# 4. Configure remote storage (GitHub example)
+# Generate PAT: https://github.com/settings/tokens (select 'repo' scope)
 cd ~/.spirit
-git remote add origin "https://USER:TOKEN@github.com/USER/orion-state.git"
 
-# Option B: SSH key (recommended)
-git remote add origin "git@github.com:USER/orion-state.git"
+# Option A: PAT in URL (quickstart)
+git remote add origin "https://USER:TOKEN@github.com/USER/REPO.git"
+# Example: git remote add origin "https://myself:ghp_PERSONAL_ACCESS_TOKEN@github.com/myself/orion-state.git"
 
-# 4. Sync
-cd ~ && spirit sync
+# Option B: SSH key (more secure - recommended)
+git remote add origin "git@github.com:USER/REPO.git"
+# See Authentication section below for SSH setup
+
+# 5. Sync
+spirit sync
 ```
 
 ## Create Checkpoint
@@ -84,7 +95,7 @@ spirit restore
 # 🌌 SPIRIT restored for 'orion'
 # Last checkpoint: 2026-02-16 15:00 UTC
 # Context: Completed BotCall v0.1.0
-# 
+#
 # Resuming where we left off...
 ```
 
@@ -98,18 +109,18 @@ spirit restore
 | **Persistence** | Local files | Cloud API | **Git + Multi-backend** |
 | **Portability** | OpenClaw only | OpenClaw only | **Any AI platform** |
 | **Versioning** | None | None | **Git history** |
-| **Resurrection** | ❌ | ❌ | **✅ Complete restore** |
+| **Resurrection** | 🔴 | 🔴 | **🟢 Complete restore** |
 
 ---
 
 ## Features
 
-- ✅ **Multi-backend sync** — GitHub, GitLab, S3, Docker, Local
-- ✅ **Git versioning** — Full checkpoint history
-- ✅ **Template marketplace** — Share personas
-- ✅ **Cross-platform** — OpenClaw, Claude, Aider, etc.
-- ✅ **CLI + OpenClaw Skill** — Flexible usage
-- ✅ **Zero vendor lock-in** — Self-hosted option
+- ✅ **Multi-backend sync** - GitHub, GitLab, S3, Docker, Local
+- ✅ **Git versioning** - Full checkpoint history
+- ✅ **Template marketplace** - Share personas
+- ✅ **Cross-platform** - OpenClaw, Claude, Aider, etc.
+- ✅ **CLI + OpenClaw Skill** - Flexible usage
+- ✅ **Zero vendor lock-in** - Self-hosted option
 
 ---
 
@@ -158,11 +169,11 @@ SPIRIT uses standard Git for sync. Configure your remote with any Git auth metho
 4. Click **Generate new token (classic)**
 5. **Note:** "SPIRIT backup"
 6. **Expiration:** 90 days (or No expiration)
-7. **Select scopes:** 
+7. **Select scopes:**
    - ✅ `repo` (Full control of private repositories)
    - ✅ `read:org` (Read org and team membership)
 8. Click **Generate token** at bottom
-9. **⚠️ COPY TOKEN NOW** — you can't see it again!
+9. **⚠️ COPY TOKEN NOW** - you can't see it again!
 10. Token looks like: `ghp_xxxxxxxxxxxxxxxxxxxx`
 
 #### GitLab Personal Access Token
@@ -175,7 +186,7 @@ SPIRIT uses standard Git for sync. Configure your remote with any Git auth metho
    - ✅ `read_repository`
    - ✅ `write_repository`
 6. Click **Create personal access token**
-7. **⚠️ COPY TOKEN NOW** — displayed only once!
+7. **⚠️ COPY TOKEN NOW** - displayed only once!
 8. Token looks like: `glpat-xxxxxxxxxxxxxxxxxxxx`
 
 #### Bitbucket App Password
@@ -186,7 +197,7 @@ SPIRIT uses standard Git for sync. Configure your remote with any Git auth metho
 5. **Permissions:**
    - Repositories: **Read, Write, Admin**
 6. Click **Create**
-7. **⚠️ COPY PASSWORD NOW** — displayed only once!
+7. **⚠️ COPY PASSWORD NOW** - displayed only once!
 8. Password looks like: `xxxxxxxxxxxxxxxxxxxx` (random string)
 
 ### Configuring SPIRIT
@@ -272,13 +283,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
-MIT — See [LICENSE](LICENSE)
+MIT - See [LICENSE](LICENSE)
 
 ## Connect
 
-- Twitter: [@SpiritAI](https://twitter.com/SpiritAI)
+- Twitter: [@my_self_orion](https://x.com/my_self_orion)
 - GitHub: [TheOrionAI/spirit](https://github.com/TheOrionAI/spirit)
-- Website: [spirit.theorionai.io](https://spirit.theorionai.io)
+- Docs: [TheOrionAI/spirit#readme](https://github.com/TheOrionAI/spirit#readme)
 
 ---
 
