@@ -84,6 +84,39 @@ func initializeSpirit(name, emoji, email string) error {
 		}
 	}
 
+	// Create default tracked files list
+	trackedFiles := []string{
+		"IDENTITY.md",
+		"SOUL.md",
+		"AGENTS.md",
+		"TOOLS.md",
+		"PROJECTS.md",
+		"HEARTBEAT.md",
+		"README.md",
+		"memory/*.md",
+		"projects/*.md",
+		"context/*.md",
+	}
+
+	// Write .spirit-tracked config
+	trackedConfig := struct {
+		Version string   `json:"version"`
+		Files   []string `json:"files"`
+	}{
+		Version: "1.0.0",
+		Files:   trackedFiles,
+	}
+
+	trackedData, err := json.MarshalIndent(trackedConfig, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal tracked config: %w", err)
+	}
+
+	trackedPath := filepath.Join(ConfigDir, ".spirit-tracked")
+	if err := os.WriteFile(trackedPath, trackedData, 0644); err != nil {
+		return fmt.Errorf("failed to write tracked config: %w", err)
+	}
+
 	// Create identity
 	config := Config{
 		Version: "1.0.0",

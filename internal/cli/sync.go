@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,18 +12,31 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TrackedConfig represents the .spirit-tracked file
+type TrackedConfig struct {
+	Version string   `json:"version"`
+	Files   []string `json:"files"`
+}
+
 func syncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
 		Short: "Sync state to configured backend",
-		Long:  `Push current state to remote repository (GitHub/GitLab).`,
+		Long:  `Push current state to remote repository.
+
+Only files that exist will be synced. Missing files are skipped silently.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSync()
+			verbose, _ := cmd.Flags().GetBool("verbose")
+			return runSync(verbose)
 		},
 	}
 }
 
-func runSync() error {
+func runSync(verbose bool) error {
+	if verbose {
+		fmt.Println("🔍 Verbose mode enabled")
+	}
+
 	// Check if spirit is initialized
 	if _, err := os.Stat(ConfigDir); os.IsNotExist(err) {
 		return fmt.Errorf("spirit not initialized. Run: spirit init")
@@ -31,7 +45,6 @@ func runSync() error {
 	// Check for git repo
 	dotGit := filepath.Join(ConfigDir, ".git")
 	if _, err := os.Stat(dotGit); os.IsNotExist(err) {
-		// Initialize git repo
 		fmt.Println("📦 Initializing git repository...")
 		if err := gitInit(); err != nil {
 			return fmt.Errorf("git init failed: %w", err)
@@ -41,36 +54,114 @@ func runSync() error {
 	// Check for remote
 	remoteURL, err := getRemoteURL()
 	if err != nil || remoteURL == "" {
-		// Prompt for remote setup
 		fmt.Println("🔗 No remote configured.")
 		fmt.Println("   Set up with: git remote add origin <url>")
-		fmt.Println("   Or use: spirit sync --setup")
 		return fmt.Errorf("no remote configured")
 	}
 
-	// Stage all changes
+	// Load tracked files
+	tracked, err := loadTrackedFiles()
+	if err != nil {
+		if verbose {
+			fmt.Printf("   ⚠️  Using default tracked files: %v\n", err)
+		}
+		// Fallback to defaults
+		tracked = []string{
+			"IDENTITY.md", "SOUL.md", "AGENTS.md", "TOOLS.md",
+			"PROJECTS.md", "HEARTBEAT.md", "README.md",
+			"spirit.json", ".spirit-tracked",
+		}
+	}
+
+	// Check which tracked files exist
+	existingFiles := []string{}
+	missingFiles := []string{}
+
+	for _, pattern := range tracked {
+		// Handle wildcards
+		if strings.Contains(pattern, "*") {
+			matches, _ := filepath.Glob(filepath.Join(ConfigDir, pattern))
+			for _, match := range matches {
+				if _, err := os.Stat(match); err == nil {
+					relPath, _ := filepath.Rel(ConfigDir, match)
+					existingFiles = append(existingFiles, relPath)
+				}
+			}
+		} else {
+			// Direct file check
+			fullPath := filepath.Join(ConfigDir, pattern)
+			if _, err := os.Stat(fullPath); err == nil {
+				existingFiles = append(existingFiles, pattern)
+			} else {
+				missingFiles = append(missingFiles, pattern)
+			}
+		}
+	}
+
+	if verbose {
+		fmt.Printf("📁 Found %d files to sync:\n", len(existingFiles))
+		for _, f := range existingFiles {
+			fmt.Printf("   ✓ %s\n", f)
+		}
+		if len(missingFiles) > 0 {
+			fmt.Printf("   ⏭️  Skipped %d missing files\n", len(missingFiles))
+			for _, f := range missingFiles {
+				fmt.Printf("     - %s (not found)\n", f)
+			}
+		}
+	} else {
+		fmt.Printf("📦 Syncing %d files...\n", len(existingFiles))
+	}
+
+	if len(existingFiles) == 0 {
+		fmt.Println("⚠️  No files to sync")
+		return nil
+	}
+
+	// Stage existing files
 	fmt.Println("➕ Staging changes...")
-	if err := gitAddAll(); err != nil {
+	if err := gitAddFiles(existingFiles); err != nil {
 		return fmt.Errorf("git add failed: %w", err)
 	}
 
 	// Commit
-	commitMsg := fmt.Sprintf("SPIRIT checkpoint: %s", time.Now().Format("2006-01-02 15:04:05"))
+	commitMsg := fmt.Sprintf("SPIRIT checkpoint: %s (%d files)",
+		time.Now().Format("2006-01-02 15:04:05"), len(existingFiles))
 	fmt.Println("💾 Creating commit...")
 	if err := gitCommit(commitMsg); err != nil {
 		// Might be no changes
-		fmt.Println("   Nothing to commit (working tree clean)")
+		if strings.Contains(err.Error(), "nothing") {
+			fmt.Println("✅ Already up to date")
+			return nil
+		}
+		return fmt.Errorf("git commit failed: %w", err)
 	}
 
 	// Push
-	fmt.Println("☁️ Pushing to remote...")
+	fmt.Println("☁️  Pushing to remote...")
 	if err := gitPush(); err != nil {
 		return fmt.Errorf("git push failed: %w", err)
 	}
 
 	fmt.Println("✅ Sync complete!")
 	fmt.Printf("   Remote: %s\n", remoteURL)
+	fmt.Printf("   Files: %d\n", len(existingFiles))
 	return nil
+}
+
+func loadTrackedFiles() ([]string, error) {
+	trackedPath := filepath.Join(ConfigDir, ".spirit-tracked")
+	data, err := os.ReadFile(trackedPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var config TrackedConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+
+	return config.Files, nil
 }
 
 func gitInit() error {
@@ -93,8 +184,9 @@ func getRemoteURL() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func gitAddAll() error {
-	cmd := exec.Command("git", "add", "-A")
+func gitAddFiles(files []string) error {
+	args := append([]string{"add"}, files...)
+	cmd := exec.Command("git", args...)
 	cmd.Dir = ConfigDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -108,11 +200,7 @@ func gitCommit(message string) error {
 	cmd.Dir = ConfigDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check if nothing to commit
-		if strings.Contains(string(output), "nothing to commit") {
-			return nil
-		}
-		return fmt.Errorf("%s: %w", string(output), err)
+		return fmt.Errorf("%s", string(output))
 	}
 	return nil
 }
