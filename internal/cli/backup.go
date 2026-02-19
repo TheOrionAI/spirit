@@ -167,9 +167,60 @@ func watchAndBackup() {
 }
 
 func hasChanges() bool {
-	// Check if files modified since last backup
-	// Implementation would check mtime vs last backup time
-	return true // Simplified
+	// Check if there are uncommitted changes in the git repo
+	dotGit := filepath.Join(ConfigDir, ".git")
+	if _, err := os.Stat(dotGit); os.IsNotExist(err) {
+		// No git repo, can't detect changes properly
+		// Fallback to checking file mtime vs config
+		return checkMTimeChanges()
+	}
+
+	// Use git status --porcelain to check for uncommitted changes
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = ConfigDir
+	output, err := cmd.Output()
+	if err != nil {
+		// Git command failed, fallback to mtime check
+		return checkMTimeChanges()
+	}
+
+	// If output is empty, no changes pending
+	return len(strings.TrimSpace(string(output))) > 0
+}
+
+func checkMTimeChanges() bool {
+	// Fallback: check if any files modified since last backup
+	// by comparing file modification time with autobackup config
+	configPath := filepath.Join(ConfigDir, "autobackup.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		// Config doesn't exist or can't be read, assume changes exist
+		return true
+	}
+
+	var config AutoBackupConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return true
+	}
+
+	// If never backed up, assume changes
+	if config.LastBackup.IsZero() {
+		return true
+	}
+
+	// Check tracked files for modifications after last backup
+	tracked, _ := loadTrackedFiles()
+	for _, pattern := range tracked {
+		matches, _ := filepath.Glob(filepath.Join(ConfigDir, pattern))
+		for _, match := range matches {
+			info, err := os.Stat(match)
+			if err == nil && info.ModTime().After(config.LastBackup) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func syncToBackends() error {
