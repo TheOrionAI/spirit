@@ -218,8 +218,17 @@ func gitCommit(message string) error {
 func gitFetch() error {
 	cmd := exec.Command("git", "fetch", "origin")
 	cmd.Dir = ConfigDir
-	// Fetch may fail if no remote, that's ok
-	_, _ = cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
+	// Fetch may fail if no remote or no commits yet - that's ok for first-time setup
+	if err != nil {
+		outputStr := strings.TrimSpace(string(output))
+		// Only treat as error if it's not a "no remote/no commits" scenario
+		if !strings.Contains(outputStr, "could not resolve") &&
+			!strings.Contains(outputStr, "does not appear to be a git repository") &&
+			!strings.Contains(outputStr, "No remote repository") {
+			return fmt.Errorf("git fetch failed: %s", outputStr)
+		}
+	}
 	return nil
 }
 
