@@ -48,3 +48,12 @@ func getConfigDir() string {
 	}
 	return filepath.Join(home, ".spirit")
 }
+
+// getSourceDir returns the directory containing actual state files
+// Defaults to ConfigDir, but can be overridden via SPIRIT_SOURCE_DIR
+func getSourceDir() string {
+	if sourceDir := os.Getenv("SPIRIT_SOURCE_DIR"); sourceDir != "" {
+		return sourceDir
+	}
+	return ConfigDir
+}

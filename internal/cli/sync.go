@@ -12,29 +12,44 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TrackedConfig represents the .spirit-tracked file
 type TrackedConfig struct {
 	Version string   `json:"version"`
 	Files   []string `json:"files"`
 }
 
 func syncCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Sync state to configured backend",
-		Long:  `Push current state to remote repository.
+		Long: `Push current state to remote repository.
 
-Only files that exist will be synced. Missing files are skipped silently.`,
+Environment variable SPIRIT_SOURCE_DIR:
+  When set, reads files from this directory instead of ~/.spirit/
+  The .spirit-tracked config is still read from ~/.spirit/ (which may be a symlink)
+
+Examples:
+  spirit sync                          # Sync from ~/.spirit/
+  SPIRIT_SOURCE_DIR=/workspace spirit sync   # Sync from /workspace
+  export SPIRIT_SOURCE_DIR=/workspace
+  spirit sync                          # Sync from /workspace
+`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			return runSync(verbose)
 		},
 	}
+	cmd.Flags().Bool("verbose", false, "Verbose output")
+	return cmd
 }
 
 func runSync(verbose bool) error {
+	sourceDir := getSourceDir()
+
 	if verbose {
-		fmt.Println("🔍 Verbose mode enabled")
+		fmt.Printf("🔍 Source directory: %s\n", sourceDir)
+		if sourceDir != ConfigDir {
+			fmt.Printf("   (via SPIRIT_SOURCE_DIR)\n")
+		}
 	}
 
 	// Check if spirit is initialized
@@ -42,7 +57,7 @@ func runSync(verbose bool) error {
 		return fmt.Errorf("spirit not initialized. Run: spirit init")
 	}
 
-	// Check for git repo
+	// Check for git repo in ConfigDir (not sourceDir)
 	dotGit := filepath.Join(ConfigDir, ".git")
 	if _, err := os.Stat(dotGit); os.IsNotExist(err) {
 		fmt.Println("📦 Initializing git repository...")
@@ -54,48 +69,70 @@ func runSync(verbose bool) error {
 	// Check for remote
 	remoteURL, err := getRemoteURL()
 	if err != nil || remoteURL == "" {
-		fmt.Println("🔗 No remote configured.")
-		fmt.Println("   Set up with: git remote add origin <url>")
+		fmt.Println("🔗 No remote configured. Set up with:")
+		fmt.Println("   cd ~/.spirit && git remote add origin <url>")
 		return fmt.Errorf("no remote configured")
 	}
 
-	// Load tracked files
+	// Load tracked files from ConfigDir (or via symlink)
 	tracked, err := loadTrackedFiles()
 	if err != nil {
 		if verbose {
-			fmt.Printf("   ⚠️  Using default tracked files: %v\n", err)
+			fmt.Printf("⚠️  Using defaults: %v\n", err)
 		}
-		// Fallback to defaults
 		tracked = []string{
-			"IDENTITY.md", "SOUL.md", "AGENTS.md", "TOOLS.md",
-			"PROJECTS.md", "HEARTBEAT.md", "README.md",
-			"spirit.json", ".spirit-tracked",
+			"IDENTITY.md", "SOUL.md", "AGENTS.md", "TOOLS.md", "PROJECTS.md",
+			"HEARTBEAT.md", "README.md", "spirit.json", ".spirit-tracked",
+			"memory/*.md", "projects/*.md", "context/*.md",
 		}
 	}
 
-	// Check which tracked files exist
+	// Clear ConfigDir (except git) and copy fresh files from sourceDir
+	// This ensures the git repo always reflects the current workspace state
 	existingFiles := []string{}
 	missingFiles := []string{}
 
 	for _, pattern := range tracked {
 		// Handle wildcards
 		if strings.Contains(pattern, "*") {
-			matches, _ := filepath.Glob(filepath.Join(ConfigDir, pattern))
+			// Glob in source directory
+			matches, _ := filepath.Glob(filepath.Join(sourceDir, pattern))
 			for _, match := range matches {
-				if _, err := os.Stat(match); err == nil {
-					relPath, _ := filepath.Rel(ConfigDir, match)
-					existingFiles = append(existingFiles, relPath)
+				if info, err := os.Stat(match); err == nil && !info.IsDir() {
+					relPath, _ := filepath.Rel(sourceDir, match)
+					// Copy to ConfigDir for sync
+					targetPath := filepath.Join(ConfigDir, relPath)
+					if err := copyFile(match, targetPath); err == nil {
+						existingFiles = append(existingFiles, relPath)
+					}
 				}
 			}
 		} else {
-			// Direct file check
-			fullPath := filepath.Join(ConfigDir, pattern)
-			if _, err := os.Stat(fullPath); err == nil {
-				existingFiles = append(existingFiles, pattern)
+			// Direct file
+			sourcePath := filepath.Join(sourceDir, pattern)
+			if _, err := os.Stat(sourcePath); err == nil {
+				targetPath := filepath.Join(ConfigDir, pattern)
+				if err := copyFile(sourcePath, targetPath); err == nil {
+					existingFiles = append(existingFiles, pattern)
+				} else if verbose {
+					fmt.Printf("⚠️  Failed to copy %s: %v\n", pattern, err)
+				}
 			} else {
-				missingFiles = append(missingFiles, pattern)
+				// File doesn't exist in source
+				// Check if it exists in ConfigDir (maybe user added it manually)
+				configPath := filepath.Join(ConfigDir, pattern)
+				if _, err := os.Stat(configPath); err == nil {
+					existingFiles = append(existingFiles, pattern)
+				} else {
+					missingFiles = append(missingFiles, pattern)
+				}
 			}
 		}
+	}
+
+	// Always include .spirit-tracked itself
+	if _, err := os.Stat(filepath.Join(ConfigDir, ".spirit-tracked")); err == nil {
+		// Already exists
 	}
 
 	if verbose {
@@ -104,9 +141,9 @@ func runSync(verbose bool) error {
 			fmt.Printf("   ✓ %s\n", f)
 		}
 		if len(missingFiles) > 0 {
-			fmt.Printf("   ⏭️  Skipped %d missing files\n", len(missingFiles))
+			fmt.Printf("⏭️  Skipped %d missing:\n", len(missingFiles))
 			for _, f := range missingFiles {
-				fmt.Printf("     - %s (not found)\n", f)
+				fmt.Printf("   - %s\n", f)
 			}
 		}
 	} else {
@@ -114,41 +151,34 @@ func runSync(verbose bool) error {
 	}
 
 	if len(existingFiles) == 0 {
-		fmt.Println("⚠️  No files to sync")
-		return nil
+		return fmt.Errorf("no files to sync (check .spirit-tracked or SPIRIT_SOURCE_DIR)")
 	}
 
-	// Stage existing files
+	// Stage and sync
 	fmt.Println("➕ Staging changes...")
-	if err := gitAddFiles(existingFiles); err != nil {
+	if err := gitAddAll(); err != nil {
 		return fmt.Errorf("git add failed: %w", err)
 	}
 
-	// Fetch remote changes first (for multi-agent sync)
 	fmt.Println("📥 Fetching remote...")
-	gitFetch() // Best effort, ignore errors
+	gitFetch()
 
-	// Pull/merge remote changes to avoid conflicts
 	fmt.Println("🔄 Syncing with remote...")
 	if err := gitPull(); err != nil {
-		return fmt.Errorf("sync failed (conflict?): %w", err)
+		return fmt.Errorf("sync failed: %w", err)
 	}
 
-	// Commit
-	commitMsg := fmt.Sprintf("SPIRIT checkpoint: %s (%d files)",
-		time.Now().Format("2006-01-02 15:04:05"), len(existingFiles))
+	commitMsg := fmt.Sprintf("SPIRIT sync: %s (%d files)", time.Now().Format("2006-01-02 15:04"), len(existingFiles))
 	fmt.Println("💾 Creating commit...")
 	if err := gitCommit(commitMsg); err != nil {
-		// Might be no changes
-		if strings.Contains(err.Error(), "nothing") {
+		if strings.Contains(err.Error(), "nothing") || strings.Contains(err.Error(), "No changes") {
 			fmt.Println("✅ Already up to date")
 			return nil
 		}
 		return fmt.Errorf("git commit failed: %w", err)
 	}
 
-	// Push
-	fmt.Println("☁️  Pushing to remote...")
+	fmt.Println("☁️ Pushing to remote...")
 	if err := gitPush(); err != nil {
 		return fmt.Errorf("git push failed: %w", err)
 	}
@@ -156,21 +186,45 @@ func runSync(verbose bool) error {
 	fmt.Println("✅ Sync complete!")
 	fmt.Printf("   Remote: %s\n", remoteURL)
 	fmt.Printf("   Files: %d\n", len(existingFiles))
+	if sourceDir != ConfigDir {
+		fmt.Printf("   Source: %s\n", sourceDir)
+	}
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	// Ensure directory exists
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	// Copy file content
+	content, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, content, 0644)
 }
 
 func loadTrackedFiles() ([]string, error) {
 	trackedPath := filepath.Join(ConfigDir, ".spirit-tracked")
 	data, err := os.ReadFile(trackedPath)
 	if err != nil {
-		return nil, err
+		// Check if it's a symlink and read target
+		if info, err := os.Lstat(trackedPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			target, _ := os.Readlink(trackedPath)
+			data, err = os.ReadFile(target)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
-
 	var config TrackedConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-
 	return config.Files, nil
 }
 
@@ -194,13 +248,51 @@ func getRemoteURL() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func gitAddFiles(files []string) error {
-	args := append([]string{"add"}, files...)
-	cmd := exec.Command("git", args...)
+func gitAddAll() error {
+	cmd := exec.Command("git", "add", "-A")
 	cmd.Dir = ConfigDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s: %w", string(output), err)
+		return fmt.Errorf("%s", string(output))
+	}
+	return nil
+}
+
+func gitFetch() error {
+	cmd := exec.Command("git", "fetch", "origin")
+	cmd.Dir = ConfigDir
+	output, err :=	cmd.CombinedOutput()
+	if err != nil {
+		outputStr := strings.TrimSpace(string(output))
+		if !strings.Contains(outputStr, "could not resolve") && 
+		   !strings.Contains(outputStr, "does not appear to be") &&
+		   !strings.Contains(outputStr, "No remote repository") {
+			return fmt.Errorf("git fetch failed: %s", outputStr)
+		}
+	}
+	return nil
+}
+
+func gitPull() error {
+	cmd := exec.Command("git", "pull", "--rebase", "origin", "main")
+	cmd.Dir = ConfigDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(output), "main") || strings.Contains(string(output), "couldn't find") {
+			cmd = exec.Command("git", "pull", "--rebase", "origin", "master")
+			cmd.Dir = ConfigDir
+			output, err = cmd.CombinedOutput()
+			if err != nil {
+				if strings.Contains(string(output), "no such ref") || strings.Contains(string(output), "could not resolve") {
+					return nil
+				}
+				return fmt.Errorf("git pull failed: %s", string(output))
+			}
+		} else if strings.Contains(string(output), "no such ref") || strings.Contains(string(output), "could not resolve") {
+			return nil
+		} else {
+			return fmt.Errorf("git pull failed: %s", string(output))
+		}
 	}
 	return nil
 }
@@ -215,57 +307,11 @@ func gitCommit(message string) error {
 	return nil
 }
 
-func gitFetch() error {
-	cmd := exec.Command("git", "fetch", "origin")
-	cmd.Dir = ConfigDir
-	output, err := cmd.CombinedOutput()
-	// Fetch may fail if no remote or no commits yet - that's ok for first-time setup
-	if err != nil {
-		outputStr := strings.TrimSpace(string(output))
-		// Only treat as error if it's not a "no remote/no commits" scenario
-		if !strings.Contains(outputStr, "could not resolve") &&
-			!strings.Contains(outputStr, "does not appear to be a git repository") &&
-			!strings.Contains(outputStr, "No remote repository") {
-			return fmt.Errorf("git fetch failed: %s", outputStr)
-		}
-	}
-	return nil
-}
-
-func gitPull() error {
-	// Try to pull/rebase from main
-	cmd := exec.Command("git", "pull", "--rebase", "origin", "main")
-	cmd.Dir = ConfigDir
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// Try master if main fails
-		if strings.Contains(string(output), "main") || strings.Contains(string(output), "couldn't find remote ref") {
-			cmd = exec.Command("git", "pull", "--rebase", "origin", "master")
-			cmd.Dir = ConfigDir
-			output, err = cmd.CombinedOutput()
-			if err != nil {
-				// Might be nothing to pull (first push)
-				if strings.Contains(string(output), "no such ref") || strings.Contains(string(output), "could not resolve") {
-					return nil // First time, no remote commits yet
-				}
-				return fmt.Errorf("git pull failed: %s", string(output))
-			}
-		} else if strings.Contains(string(output), "no such ref") || strings.Contains(string(output), "could not resolve") {
-			// First time, no remote commits
-			return nil
-		} else {
-			return fmt.Errorf("git pull failed: %s", string(output))
-		}
-	}
-	return nil
-}
-
 func gitPush() error {
 	cmd := exec.Command("git", "push", "origin", "main")
 	cmd.Dir = ConfigDir
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Try master if main fails
 		if strings.Contains(string(output), "main") {
 			cmd = exec.Command("git", "push", "origin", "master")
 			cmd.Dir = ConfigDir
